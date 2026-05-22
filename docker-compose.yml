@@ -1,0 +1,64 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: vault-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vault
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-vault}
+      POSTGRES_DB: vault
+    ports:
+      # Local dev only — Traefik does not need this on prod.
+      # Comment this out on the VPS if you don't want the DB port exposed.
+      - "5433:5432"
+    volumes:
+      - vault-db-data:/var/lib/postgresql/data
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vault -d vault"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: vault-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://vault:${DB_PASSWORD:-vault}@db:5432/vault
+      SESSION_SECRET: ${SESSION_SECRET:-dev-secret-please-override}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
+      OPENAI_VISION_MODEL: ${OPENAI_VISION_MODEL:-gpt-4o}
+      RECEIPT_STORAGE_DIR: /app/storage/receipts
+      TIMEZONE: ${TIMEZONE:-Asia/Kolkata}
+      CURRENCY: ${CURRENCY:-INR}
+      NEXT_PUBLIC_APP_NAME: Vault
+      NODE_ENV: production
+    volumes:
+      - vault-storage:/app/storage
+    networks:
+      - default
+      - root_default
+    profiles: ["prod"]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=root_default"
+      - "traefik.http.routers.vault.rule=Host(`${PUBLIC_HOST:-vault.srv844822.hstgr.cloud}`)"
+      - "traefik.http.routers.vault.entrypoints=web,websecure"
+      - "traefik.http.routers.vault.tls=true"
+      - "traefik.http.routers.vault.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.vault.loadbalancer.server.port=3000"
+
+networks:
+  default:
+  root_default:
+    external: true
+
+volumes:
+  vault-db-data:
+  vault-storage:
