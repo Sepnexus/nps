@@ -10,8 +10,8 @@ export function getOpenAI() {
   return _client;
 }
 
-export const CHAT_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o";
-export const VISION_MODEL = process.env.OPENAI_VISION_MODEL ?? "gpt-4o";
+export const CHAT_MODEL = process.env.OPENAI_MODEL ?? "gpt-5";
+export const VISION_MODEL = process.env.OPENAI_VISION_MODEL ?? "gpt-5";
 
 /**
  * Ask GPT-4 Vision to extract structured data from a receipt image (base64 data URL).

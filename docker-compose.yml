@@ -32,8 +32,8 @@ services:
       DATABASE_URL: postgres://vault:${DB_PASSWORD:-vault}@db:5432/vault
       SESSION_SECRET: ${SESSION_SECRET:-dev-secret-please-override}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
-      OPENAI_VISION_MODEL: ${OPENAI_VISION_MODEL:-gpt-4o}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5}
+      OPENAI_VISION_MODEL: ${OPENAI_VISION_MODEL:-gpt-5}
       RECEIPT_STORAGE_DIR: /app/storage/receipts
       TIMEZONE: ${TIMEZONE:-Asia/Kolkata}
       CURRENCY: ${CURRENCY:-INR}
