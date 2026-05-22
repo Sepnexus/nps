@@ -75,8 +75,10 @@ You should see `vault-app` and `vault-db` both running.
 
 ```bash
 docker compose exec app node node_modules/.bin/tsx scripts/migrate.ts
-SEED_EMAIL=akshay@sepnexus.com SEED_PASSWORD=vault123 \
-  docker compose exec -T app node node_modules/.bin/tsx scripts/seed.ts
+docker compose exec -T \
+  -e SEED_EMAIL=akshay@sepnexus.com \
+  -e SEED_PASSWORD='vault123' \
+  app ./node_modules/.bin/tsx scripts/seed.ts
 ```
 
 **Success:** prints `Migrations applied.` then `Created user: akshay@sepnexus.com (password: vault123)` and `Seed complete.`
