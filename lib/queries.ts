@@ -146,6 +146,102 @@ export async function listGoals() {
   return db.select().from(goals).where(eq(goals.userId, u.id)).orderBy(goals.priority);
 }
 
+/** Last N months of income and expense totals for the cash-flow chart. */
+export async function monthlyHistory(months = 6) {
+  const u = await requireUser();
+  const start = new Date();
+  start.setDate(1);
+  start.setHours(0, 0, 0, 0);
+  start.setMonth(start.getMonth() - (months - 1));
+
+  const rows = await db
+    .select({
+      bucket: sql<string>`to_char(date_trunc('month', ${transactions.occurredAt}), 'YYYY-MM')`,
+      income: sql<string>`coalesce(sum(case when ${transactions.kind} = 'income' then ${transactions.amount} else 0 end), 0)`,
+      expense: sql<string>`coalesce(sum(case when ${transactions.kind} = 'expense' then ${transactions.amount} else 0 end), 0)`,
+    })
+    .from(transactions)
+    .innerJoin(entities, eq(entities.id, transactions.entityId))
+    .where(and(eq(entities.userId, u.id), sql`${transactions.occurredAt} >= ${start.toISOString()}`))
+    .groupBy(sql`date_trunc('month', ${transactions.occurredAt})`)
+    .orderBy(sql`date_trunc('month', ${transactions.occurredAt})`);
+
+  // Fill missing months with zeros
+  const byKey = new Map(rows.map((r) => [r.bucket, { income: Number(r.income), expense: Number(r.expense) }]));
+  const result: { month: string; income: number; expense: number }[] = [];
+  const cursor = new Date(start);
+  const monthFmt = new Intl.DateTimeFormat("en-US", { month: "short" });
+  for (let i = 0; i < months; i++) {
+    const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`;
+    const r = byKey.get(key) ?? { income: 0, expense: 0 };
+    result.push({ month: monthFmt.format(cursor), income: r.income, expense: r.expense });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return result;
+}
+
+/** Current-month expense breakdown by category (top N). */
+export async function expenseBreakdown(limit = 8) {
+  const u = await requireUser();
+  const start = new Date();
+  start.setDate(1);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setMonth(end.getMonth() + 1);
+
+  const rows = await db
+    .select({
+      name: sql<string>`coalesce(${categories.name}, 'Uncategorized')`,
+      value: sql<string>`coalesce(sum(${transactions.amount}), 0)`,
+    })
+    .from(transactions)
+    .innerJoin(entities, eq(entities.id, transactions.entityId))
+    .leftJoin(categories, eq(categories.id, transactions.categoryId))
+    .where(
+      and(
+        eq(entities.userId, u.id),
+        eq(transactions.kind, "expense"),
+        sql`${transactions.occurredAt} >= ${start.toISOString()}`,
+        sql`${transactions.occurredAt} < ${end.toISOString()}`,
+      ),
+    )
+    .groupBy(categories.name)
+    .orderBy(sql`coalesce(sum(${transactions.amount}), 0) desc`)
+    .limit(limit);
+
+  return rows.map((r) => ({ name: r.name, value: Number(r.value) }));
+}
+
+/** Total monthly EMI burden across active loans. */
+export async function totalMonthlyEmi() {
+  const u = await requireUser();
+  const rows = await db
+    .select({ emi: loans.emi })
+    .from(loans)
+    .innerJoin(entities, eq(entities.id, loans.entityId))
+    .where(and(eq(entities.userId, u.id), eq(loans.isClosed, false)));
+  return rows.reduce((s, r) => s + Number(r.emi), 0);
+}
+
+/** Current investment totals: invested, current value, monthly SIP. */
+export async function investmentTotals() {
+  const u = await requireUser();
+  const rows = await db
+    .select({ invested: investments.invested, currentValue: investments.currentValue, sipAmount: investments.sipAmount })
+    .from(investments)
+    .innerJoin(entities, eq(entities.id, investments.entityId))
+    .where(and(eq(entities.userId, u.id), eq(investments.isActive, true)));
+  let invested = 0,
+    currentValue = 0,
+    sip = 0;
+  for (const r of rows) {
+    invested += Number(r.invested);
+    currentValue += Number(r.currentValue);
+    sip += Number(r.sipAmount ?? 0);
+  }
+  return { invested, currentValue, sip };
+}
+
 export async function netWorth() {
   const u = await requireUser();
   const rows = await db

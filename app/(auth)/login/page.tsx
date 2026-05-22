@@ -33,7 +33,7 @@ export default function LoginPage() {
           <form action={formAction} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" name="email" type="email" autoComplete="email" required defaultValue="akshay@sepnexus.com" />
+              <Input id="email" name="email" type="email" autoComplete="email" required />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="password">Password</Label>
@@ -41,7 +41,6 @@ export default function LoginPage() {
             </div>
             {state?.error && <p className="text-sm text-destructive">{state.error}</p>}
             <SubmitButton />
-            <p className="text-center text-xs text-muted-foreground">Default password from seed: <code>vault123</code></p>
           </form>
         </CardContent>
       </Card>

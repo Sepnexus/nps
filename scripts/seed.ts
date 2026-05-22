@@ -46,17 +46,20 @@ async function main() {
   const email = process.env.SEED_EMAIL ?? "akshay@sepnexus.com";
   const password = process.env.SEED_PASSWORD ?? "changeme123";
 
-  // user
+  // user — upsert and ALWAYS set password to SEED_PASSWORD when provided.
+  // This makes the seed idempotent and lets you reset the password by re-running
+  // with a new SEED_PASSWORD env var.
+  const passwordHash = await hash(password);
   let [user] = await db.select().from(schema.users).where(eq(schema.users.email, email)).limit(1);
   if (!user) {
-    const passwordHash = await hash(password);
     [user] = await db
       .insert(schema.users)
       .values({ email, passwordHash, displayName: "Akshay" })
       .returning();
-    console.log("Created user:", email, "(password:", password, ")");
+    console.log("Created user:", email);
   } else {
-    console.log("User exists:", email);
+    await db.update(schema.users).set({ passwordHash, updatedAt: new Date() }).where(eq(schema.users.id, user.id));
+    console.log("Updated password for existing user:", email);
   }
 
   // entities

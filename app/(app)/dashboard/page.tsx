@@ -1,30 +1,60 @@
 import { ArrowDownRight, ArrowUpRight, Target, TrendingUp, Wallet } from "lucide-react";
+import Link from "next/link";
 import { BreakdownChart } from "@/components/breakdown-chart";
 import { CashflowChart } from "@/components/cashflow-chart";
 import { Card, CardContent, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
-import { DEMO } from "@/lib/demo-data";
 import { fiCorpus, goalMonthlyRequired } from "@/lib/finance";
-import { dashboardMetrics, netWorth } from "@/lib/queries";
+import {
+  dashboardMetrics,
+  expenseBreakdown,
+  investmentTotals,
+  listGoals,
+  monthlyHistory,
+  netWorth,
+  totalMonthlyEmi,
+} from "@/lib/queries";
 import { formatMoney, formatPct } from "@/lib/utils";
 
+function monthsUntil(date: string | null) {
+  if (!date) return null;
+  const now = new Date();
+  const target = new Date(date);
+  return Math.max(0, Math.round((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 30)));
+}
+
 export default async function DashboardPage() {
-  const [m, nw] = await Promise.all([dashboardMetrics(), netWorth()]);
-  const usingReal = m.count > 0;
-  const income = usingReal ? m.income : DEMO.income.total;
-  const expense = usingReal ? m.expense : DEMO.expenses.total;
+  const [m, nw, history, breakdown, emiTotal, inv, goals] = await Promise.all([
+    dashboardMetrics(),
+    netWorth(),
+    monthlyHistory(6),
+    expenseBreakdown(8),
+    totalMonthlyEmi(),
+    investmentTotals(),
+    listGoals(),
+  ]);
+
+  const income = m.income;
+  const expense = m.expense;
   const surplus = income - expense;
-  const savingsRate = (surplus / income) * 100;
-  const emiTotal = DEMO.expenses.emi1 + DEMO.expenses.emi2;
-  const emiPct = (emiTotal / income) * 100;
-  const fi = fiCorpus(expense);
+  const savingsRate = income > 0 ? (surplus / income) * 100 : 0;
+  const emiPct = income > 0 ? (emiTotal / income) * 100 : 0;
+  const fi = expense > 0 ? fiCorpus(expense) : 0;
+
+  const hasAnyData = m.count > 0 || nw.assets > 0 || emiTotal > 0 || inv.invested > 0 || goals.length > 0;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      {!usingReal && (
-        <div className="rounded-md border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">
-          Showing illustrative numbers. Add some transactions and this will switch to your real data.
-        </div>
+      {!hasAnyData && (
+        <Card>
+          <CardContent className="py-6 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground mb-1">Welcome to Vault.</p>
+            Start by adding your first <Link className="underline" href="/accounts">account</Link>, then log a{" "}
+            <Link className="underline" href="/transactions/new">transaction</Link>, or set up a{" "}
+            <Link className="underline" href="/goals">goal</Link>. The dashboard updates instantly.
+          </CardContent>
+        </Card>
       )}
+
       <section className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <Kpi
           title="Net worth"
@@ -36,30 +66,51 @@ export default async function DashboardPage() {
         <Kpi
           title="Monthly Income"
           value={formatMoney(income)}
-          delta={usingReal ? `${m.count} transactions this month` : "demo"}
+          delta={income > 0 ? `${m.count} transactions this month` : "no income logged"}
           deltaPositive
           icon={<ArrowUpRight className="size-4 text-[hsl(var(--chart-income))]" />}
         />
         <Kpi
           title="Monthly Expense"
           value={formatMoney(expense)}
-          delta={usingReal ? "this month so far" : "demo"}
+          delta={expense > 0 ? "this month so far" : "no expenses logged"}
           deltaPositive
           icon={<ArrowDownRight className="size-4 text-[hsl(var(--chart-expense))]" />}
         />
         <Kpi
           title="Surplus / Savings Rate"
           value={formatMoney(surplus)}
-          delta={formatPct(savingsRate, 0) + " saved"}
-          deltaPositive
+          delta={income > 0 ? `${formatPct(savingsRate, 0)} saved` : "—"}
+          deltaPositive={surplus >= 0}
           icon={<Wallet className="size-4 text-[hsl(var(--chart-savings))]" />}
         />
         <Kpi
-          title="EMI % of Income"
-          value={formatPct(emiPct, 1)}
-          delta={emiPct < 30 ? "Healthy" : "Watch"}
+          title="EMI burden"
+          value={formatMoney(emiTotal)}
+          delta={emiTotal > 0 && income > 0 ? `${formatPct(emiPct, 1)} of income — ${emiPct < 30 ? "healthy" : "watch"}` : "no active loans"}
           deltaPositive={emiPct < 30}
           icon={<TrendingUp className="size-4 text-[hsl(var(--chart-debt))]" />}
+        />
+        <Kpi
+          title="Investments"
+          value={formatMoney(inv.currentValue)}
+          delta={inv.sip > 0 ? `${formatMoney(inv.sip, { compact: true })}/mo SIP` : inv.invested > 0 ? "manual" : "none yet"}
+          deltaPositive={inv.currentValue >= inv.invested}
+          icon={<TrendingUp className="size-4 text-[hsl(var(--chart-investment))]" />}
+        />
+        <Kpi
+          title="Active goals"
+          value={String(goals.length)}
+          delta={goals.length > 0 ? `${goals.filter((g) => g.status === "active").length} active` : "set your first"}
+          deltaPositive
+          icon={<Target className="size-4 text-primary" />}
+        />
+        <Kpi
+          title="FI corpus needed"
+          value={formatMoney(fi, { compact: true })}
+          delta={expense > 0 ? "25× annual expense" : "log a month of expenses first"}
+          deltaPositive
+          icon={<Wallet className="size-4 text-primary" />}
         />
       </section>
 
@@ -75,23 +126,33 @@ export default async function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <CashflowChart data={DEMO.monthlyHistory} />
+            {history.some((r) => r.income > 0 || r.expense > 0) ? (
+              <CashflowChart data={history} />
+            ) : (
+              <p className="py-12 text-center text-sm text-muted-foreground">No transactions in the last 6 months yet.</p>
+            )}
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Where money goes</CardTitle>
+            <CardTitle>Where money goes — this month</CardTitle>
           </CardHeader>
           <CardContent>
-            <BreakdownChart data={DEMO.expenseBreakdown} />
-            <ul className="mt-3 space-y-1.5 text-xs">
-              {DEMO.expenseBreakdown.map((b) => (
-                <li key={b.name} className="flex items-center justify-between">
-                  <span className="text-muted-foreground">{b.name}</span>
-                  <span className="tabular">{formatMoney(b.value)}</span>
-                </li>
-              ))}
-            </ul>
+            {breakdown.length > 0 ? (
+              <>
+                <BreakdownChart data={breakdown} />
+                <ul className="mt-3 space-y-1.5 text-xs">
+                  {breakdown.map((b) => (
+                    <li key={b.name} className="flex items-center justify-between">
+                      <span className="text-muted-foreground">{b.name}</span>
+                      <span className="tabular">{formatMoney(b.value)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p className="py-12 text-center text-sm text-muted-foreground">No expenses this month yet.</p>
+            )}
           </CardContent>
         </Card>
       </section>
@@ -105,29 +166,38 @@ export default async function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {DEMO.goals.map((g) => {
-              const pct = Math.min(100, (g.current / g.target) * 100);
-              const need = goalMonthlyRequired(g.current, g.target, g.monthsTo);
-              return (
-                <div key={g.name}>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">{g.name}</span>
-                    <span className="text-muted-foreground tabular">
-                      {formatMoney(g.current, { compact: true })} / {formatMoney(g.target, { compact: true })}
-                    </span>
+            {goals.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No goals yet. <Link className="underline" href="/goals">Add your first</Link> — Emergency Fund, FI corpus, vacation, etc.
+              </p>
+            ) : (
+              goals.slice(0, 4).map((g) => {
+                const cur = Number(g.currentAmount);
+                const tgt = Number(g.targetAmount);
+                const pct = tgt ? Math.min(100, (cur / tgt) * 100) : 0;
+                const months = monthsUntil(g.targetDate);
+                const need = months !== null ? goalMonthlyRequired(cur, tgt, months) : null;
+                return (
+                  <div key={g.id}>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium">{g.name}</span>
+                      <span className="text-muted-foreground tabular">
+                        {formatMoney(cur, { compact: true })} / {formatMoney(tgt, { compact: true })}
+                      </span>
+                    </div>
+                    <div className="mt-1.5 h-2 rounded-full bg-secondary">
+                      <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+                    </div>
+                    <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{pct.toFixed(1)}% complete</span>
+                      {need !== null && months !== null && (
+                        <span className="tabular">Needs ~{formatMoney(need, { compact: true })}/mo for {months} mo</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="mt-1.5 h-2 rounded-full bg-secondary">
-                    <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
-                  </div>
-                  <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                    <span>{pct.toFixed(1)}% complete</span>
-                    <span className="tabular">
-                      Needs ~{formatMoney(need, { compact: true })}/mo for {g.monthsTo} mo
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </CardContent>
         </Card>
 
@@ -136,18 +206,26 @@ export default async function DashboardPage() {
             <CardTitle>Financial Independence projection</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
-            <Row label="Monthly expense (current)" value={formatMoney(expense)} />
-            <Row label="Annual expense" value={formatMoney(expense * 12)} />
-            <Row label="FI corpus (25× rule)" value={formatMoney(fi)} strong />
-            <Row label="Investments today (est.)" value={formatMoney(DEMO.investments.estimatedCurrentValue)} />
-            <Row label="Current SIP" value={`${formatMoney(DEMO.investments.sipMonthly)}/mo`} />
-            <div className="pt-2 text-xs text-muted-foreground border-t">
-              At a 12% expected annual return, your current SIP would need to rise to roughly{" "}
-              <span className="text-foreground font-medium tabular">
-                {formatMoney(goalMonthlyRequired(DEMO.investments.estimatedCurrentValue, fi, 12 * 12))}/mo
-              </span>{" "}
-              to hit FI in 12 years. After your ₹20k EMI ends, this is comfortably reachable.
-            </div>
+            {expense > 0 ? (
+              <>
+                <Row label="Monthly expense (current)" value={formatMoney(expense)} />
+                <Row label="Annual expense" value={formatMoney(expense * 12)} />
+                <Row label="FI corpus (25× rule)" value={formatMoney(fi)} strong />
+                <Row label="Investments today" value={formatMoney(inv.currentValue)} />
+                <Row label="Current SIP" value={inv.sip > 0 ? `${formatMoney(inv.sip)}/mo` : "—"} />
+                <div className="pt-2 text-xs text-muted-foreground border-t">
+                  At a 12% expected annual return, your SIP would need to be roughly{" "}
+                  <span className="text-foreground font-medium tabular">
+                    {formatMoney(goalMonthlyRequired(inv.currentValue, fi, 12 * 12))}/mo
+                  </span>{" "}
+                  to reach FI in 12 years.
+                </div>
+              </>
+            ) : (
+              <p className="text-muted-foreground">
+                Log a month of expenses and Vault will compute your FI target and the SIP required to reach it.
+              </p>
+            )}
           </CardContent>
         </Card>
       </section>
@@ -179,7 +257,7 @@ function Kpi({
       <CardContent>
         <CardValue>{value}</CardValue>
         {delta && (
-          <p className={"mt-1 text-xs " + (deltaPositive ? "text-[hsl(var(--chart-income))]" : "text-[hsl(var(--chart-expense))]")}>
+          <p className={"mt-1 text-xs " + (deltaPositive ? "text-[hsl(var(--chart-income))]" : "text-muted-foreground")}>
             {delta}
           </p>
         )}
