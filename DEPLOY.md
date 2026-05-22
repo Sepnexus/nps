@@ -2,37 +2,35 @@
 
 Target: `https://vault.srv844822.hstgr.cloud` — auto-SSL via Traefik (same pattern as iBuyKC dashboards, n8n, buffer).
 
+Code lives at: `https://github.com/Sepnexus/nps`
+
 You will end up with:
 - `vault-app` container (Next.js, port 3000 internal, routed by Traefik)
 - `vault-db` container (Postgres 16, isolated to Vault)
 - Volumes `vault_vault-db-data` and `vault_vault-storage` (database + receipt uploads)
 - Joined to the existing `root_default` network so Traefik routes to it
 
-## Step 1 — Upload the project to the VPS
-
-Open a Terminal **on your Mac** and run:
-
-```bash
-rsync -avz --delete \
-  --exclude node_modules --exclude .next --exclude storage \
-  --exclude .env.local --exclude '*.log' --exclude .DS_Store \
-  "/Users/akshaypalsingh/Desktop/Apps Dev/Ibuy/vault/" \
-  root@srv844822.hstgr.cloud:/root/vault/
-```
-
-It will prompt for your VPS root password.
-
-**Success:** the last line shows `sent ... bytes received ... bytes` and no errors.
-
-## Step 2 — SSH into the VPS
+## Step 1 — SSH into the VPS
 
 ```bash
 ssh root@srv844822.hstgr.cloud
 ```
 
-You should now be at a `root@srv844822 ~#` prompt.
+You should be at a `root@srv844822 ~#` prompt.
 
-## Step 3 — Create the `.env` file on the VPS
+## Step 2 — Clone the repo
+
+```bash
+cd /root
+git clone https://github.com/Sepnexus/nps.git vault
+cd vault
+```
+
+**Success:** `ls` shows files including `docker-compose.yml`, `Dockerfile`, `app/`, `db/`.
+
+## Step 3 — Create the `.env` file with secrets
+
+The `.env` file is **NOT in git** (correctly — it has your secrets). Create it on the VPS:
 
 ```bash
 cd /root/vault
@@ -50,25 +48,28 @@ nano .env
 ```
 
 In nano, change:
-- `DB_PASSWORD` to a strong password (any 16+ random chars)
-- `OPENAI_API_KEY` to your real OpenAI key (or leave empty for now — you can add it later)
+- `DB_PASSWORD` to any strong 16+ character random string
+- `OPENAI_API_KEY` to your real OpenAI key (starts with `sk-...`)
 
 Save: **Ctrl+O**, **Enter**, **Ctrl+X**.
+
+> **Where to add the OpenAI key**: it goes ONLY in this `.env` file on the VPS. Never in git, never in code. If you want to change it later: `nano /root/vault/.env`, edit the line, save, then run `docker compose --profile prod up -d` to apply.
 
 ## Step 4 — Build and start the stack
 
 ```bash
-cd /root/vault
 docker compose --profile prod up -d --build
 ```
 
-**Success:** the final output shows `Container vault-db ... Started` and `Container vault-app ... Started`. First build will take 3–5 minutes (it installs and compiles Next.js inside Docker).
+First build takes 3–5 minutes (installs deps + builds Next.js inside Docker).
 
-Check containers:
+**Success:** `Container vault-db ... Started` and `Container vault-app ... Started`.
+
+Verify:
 ```bash
 docker ps --format "table {{.Names}}\t{{.Status}}"
 ```
-You should see `vault-app` and `vault-db` both with status `Up ... (healthy)` or `Up`.
+You should see `vault-app` and `vault-db` both running.
 
 ## Step 5 — Run migrations + seed your user (first time only)
 
@@ -78,11 +79,11 @@ SEED_EMAIL=akshay@sepnexus.com SEED_PASSWORD=vault123 \
   docker compose exec -T app node node_modules/.bin/tsx scripts/seed.ts
 ```
 
-**Success:** prints `Migrations applied.` and `Created user: akshay@sepnexus.com (password: vault123)` and `Seed complete.`
+**Success:** prints `Migrations applied.` then `Created user: akshay@sepnexus.com (password: vault123)` and `Seed complete.`
 
 ## Step 6 — Open it on your iPhone
 
-Wait ~30 seconds for Traefik to issue the SSL certificate, then open Safari and go to:
+Wait ~30 seconds for Traefik to issue the SSL cert. Then in **Safari**:
 
 ```
 https://vault.srv844822.hstgr.cloud
@@ -90,58 +91,59 @@ https://vault.srv844822.hstgr.cloud
 
 Log in with `akshay@sepnexus.com` / `vault123`.
 
-**Install as a phone app:** Tap the Share button → **Add to Home Screen** → Add. Vault now has its own icon and opens full-screen.
+**Install as an app:** Share button → **Add to Home Screen** → Add. Vault now has its own icon and opens full-screen with camera access for receipt scanning.
 
-## Step 7 — Change your password
+## Step 7 — Change the default password (do this now)
 
-Right now it's the seed default `vault123`. From the VPS:
+On your Mac, generate a new password hash:
 
 ```bash
-docker compose exec db psql -U vault -d vault
+node -e "const c=require('node:crypto'),u=require('node:util'),s=u.promisify(c.scrypt);(async()=>{const salt=c.randomBytes(16);const k=await s('YOUR-NEW-PASSWORD-HERE',salt,64);console.log('s1\$'+salt.toString('hex')+'\$'+k.toString('hex'));})()"
 ```
 
-Inside psql, paste:
-```sql
--- generate a new scrypt hash by running this on your Mac first:
--- node -e "const c=require('node:crypto'); const u=require('node:util'); const s=u.promisify(c.scrypt); (async()=>{const salt=c.randomBytes(16); const k=await s('YOUR-NEW-PASSWORD',salt,64); console.log('s1$'+salt.toString('hex')+'$'+k.toString('hex'));})()"
+Copy the output (the long `s1$...$...` string).
 
--- then on the VPS:
-UPDATE users SET password_hash='<PASTE THE HASH HERE>' WHERE email='akshay@sepnexus.com';
-\q
-```
-
-Or just re-run seed with a new `SEED_PASSWORD`:
+On the VPS:
 ```bash
-# WARNING: only works if user table is empty. To force, delete first:
-# docker compose exec db psql -U vault -d vault -c "DELETE FROM users;"
-SEED_EMAIL=akshay@sepnexus.com SEED_PASSWORD=YOUR-NEW-STRONG-PASSWORD \
-  docker compose exec -T app node node_modules/.bin/tsx scripts/seed.ts
+docker compose exec db psql -U vault -d vault -c "UPDATE users SET password_hash='<paste the s1$... hash here>' WHERE email='akshay@sepnexus.com';"
 ```
 
-## Updating later (when you change code on your Mac)
+Logout in your browser and log back in with the new password.
 
-From Mac:
+---
+
+## Updating later (when you change code)
+
+From your Mac:
 ```bash
-rsync -avz --delete --exclude node_modules --exclude .next --exclude storage \
-  --exclude .env.local --exclude '*.log' --exclude .DS_Store \
-  "/Users/akshaypalsingh/Desktop/Apps Dev/Ibuy/vault/" \
-  root@srv844822.hstgr.cloud:/root/vault/
+cd "/Users/akshaypalsingh/Desktop/Apps Dev/Ibuy/vault"
+git add .
+git commit -m "your change description"
+git push
 ```
 
-Then SSH in and rebuild:
+Then on the VPS:
 ```bash
-ssh root@srv844822.hstgr.cloud "cd /root/vault && docker compose --profile prod up -d --build"
+ssh root@srv844822.hstgr.cloud
+cd /root/vault
+git pull
+docker compose --profile prod up -d --build
+```
+
+If your changes include new tables or column additions, after the rebuild:
+```bash
+docker compose exec app node node_modules/.bin/tsx scripts/migrate.ts
 ```
 
 ## Backups
-
-The DB lives in the `vault_vault-db-data` Docker volume. Set up nightly snapshots:
 
 ```bash
 ssh root@srv844822.hstgr.cloud
 mkdir -p /root/vault-backups
 crontab -l 2>/dev/null | { cat; echo '0 3 * * * docker exec vault-db pg_dump -U vault vault | gzip > /root/vault-backups/$(date +\%F).sql.gz'; } | crontab -
 ```
+
+Daily backups at 3am, stored at `/root/vault-backups/YYYY-MM-DD.sql.gz`.
 
 ## Troubleshooting
 
@@ -151,13 +153,20 @@ docker compose logs app --tail 100
 docker compose logs db --tail 50
 ```
 
-**SSL cert errors in browser?** Traefik issues the cert on first request. Refresh after 30s. If still bad:
+**SSL cert errors?** Traefik issues the cert on first HTTPS request. Refresh after 30 seconds. If still broken:
 ```bash
 docker logs root-traefik-1 --tail 50 | grep -i vault
 ```
 
-**Need to start over (delete everything):**
+**Need to start over (delete everything including data):**
 ```bash
 cd /root/vault
-docker compose --profile prod down -v   # -v deletes volumes too
+docker compose --profile prod down -v
+```
+
+**OpenAI key not working / receipts/assistant pages say key missing?**
+```bash
+cat /root/vault/.env | grep OPENAI_API_KEY
+# Make sure it has a real value, then:
+docker compose --profile prod up -d
 ```
