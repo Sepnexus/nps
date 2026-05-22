@@ -3,8 +3,9 @@ RUN apk add --no-cache libc6-compat python3 make g++ && corepack enable
 
 FROM base AS deps
 WORKDIR /app
-COPY package.json pnpm-lock.yaml* ./
-RUN pnpm install --frozen-lockfile || pnpm install
+COPY package.json pnpm-lock.yaml* .npmrc* ./
+RUN pnpm install --frozen-lockfile --config.minimum-release-age=0 \
+ || pnpm install --config.minimum-release-age=0
 
 FROM base AS builder
 WORKDIR /app
