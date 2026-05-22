@@ -23,7 +23,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
 COPY --from=builder --chown=nextjs:nodejs /app/db ./db
 COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
-RUN mkdir -p /app/storage/receipts && chown -R nextjs:nodejs /app/storage
+COPY --chown=nextjs:nodejs docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN mkdir -p /app/storage/receipts \
+ && chown -R nextjs:nodejs /app/storage \
+ && chmod +x /app/docker-entrypoint.sh
 USER nextjs
 EXPOSE 3000
-CMD ["sh", "-c", "node node_modules/.bin/tsx scripts/migrate.ts && node node_modules/.bin/next start"]
+CMD ["/app/docker-entrypoint.sh"]
