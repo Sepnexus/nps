@@ -5,19 +5,14 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { entities, loanSchedule, loans } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
+import { getPersonalEntity } from "@/lib/entity";
 import { amortization, emi } from "@/lib/finance";
 
 const KINDS = ["personal", "home", "vehicle", "education", "credit_card", "other"] as const;
 
 export async function createLoan(formData: FormData) {
-  const u = await requireUser();
-  const entityId = String(formData.get("entityId"));
-  const [ent] = await db
-    .select({ id: entities.id })
-    .from(entities)
-    .where(and(eq(entities.id, entityId), eq(entities.userId, u.id)))
-    .limit(1);
-  if (!ent) return;
+  await requireUser();
+  const ent = await getPersonalEntity();
 
   const name = String(formData.get("name") ?? "").trim();
   const lender = String(formData.get("lender") ?? "").trim() || null;
@@ -37,7 +32,7 @@ export async function createLoan(formData: FormData) {
   const [loan] = await db
     .insert(loans)
     .values({
-      entityId,
+      entityId: ent.id,
       name,
       kind,
       lender,
@@ -51,7 +46,6 @@ export async function createLoan(formData: FormData) {
     })
     .returning();
 
-  // Generate amortization schedule
   const rows = amortization(principal, interestRate, tenureMonths);
   const dueDate = new Date(firstDueDate);
   for (const r of rows) {

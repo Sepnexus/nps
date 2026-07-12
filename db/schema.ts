@@ -67,6 +67,11 @@ export const users = pgTable("users", {
   displayName: varchar("display_name", { length: 120 }),
   timezone: varchar("timezone", { length: 64 }).default("Asia/Kolkata"),
   baseCurrency: varchar("base_currency", { length: 3 }).default("INR"),
+  // AI settings — stored per user, editable from /settings.
+  // When empty, falls back to OPENAI_API_KEY env var.
+  openaiApiKey: text("openai_api_key"),
+  openaiModel: varchar("openai_model", { length: 64 }),
+  openaiVisionModel: varchar("openai_vision_model", { length: 64 }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
@@ -177,6 +182,11 @@ export const transactions = pgTable("transactions", {
   tags: text("tags").array(),
   status: txnStatusEnum("status").default("cleared").notNull(),
   receiptId: uuid("receipt_id"),
+  // Flat-share tracking — for expenses split with flatmates, or income
+  // received from them as their share. When isFlatShared is true, the amount
+  // stored is the full total; flatSharePct is the % YOU pay/receive.
+  isFlatShared: boolean("is_flat_shared").default(false).notNull(),
+  flatSharePct: numeric("flat_share_pct", { precision: 5, scale: 2 }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

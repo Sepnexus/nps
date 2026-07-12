@@ -5,18 +5,13 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { entities, investments } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
+import { getPersonalEntity } from "@/lib/entity";
 
 const KINDS = ["mutual_fund", "stock", "etf", "gold", "silver", "fd", "ppf", "epf", "nps", "crypto", "other"] as const;
 
 export async function createInvestment(formData: FormData) {
-  const u = await requireUser();
-  const entityId = String(formData.get("entityId"));
-  const [ent] = await db
-    .select({ id: entities.id })
-    .from(entities)
-    .where(and(eq(entities.id, entityId), eq(entities.userId, u.id)))
-    .limit(1);
-  if (!ent) return;
+  await requireUser();
+  const ent = await getPersonalEntity();
 
   const name = String(formData.get("name") ?? "").trim();
   const kind = String(formData.get("kind") ?? "mutual_fund") as (typeof KINDS)[number];
@@ -26,7 +21,7 @@ export async function createInvestment(formData: FormData) {
   const sipAmount = String(formData.get("sipAmount") ?? "").trim() || null;
 
   await db.insert(investments).values({
-    entityId,
+    entityId: ent.id,
     name,
     kind,
     invested,

@@ -30,6 +30,9 @@ export async function createTransaction(formData: FormData) {
   const description = String(formData.get("description") ?? "").trim() || null;
   const occurredAtStr = String(formData.get("occurredAt") ?? "");
   const occurredAt = occurredAtStr ? new Date(occurredAtStr) : new Date();
+  const isFlatShared = formData.get("isFlatShared") === "on" || formData.get("isFlatShared") === "true";
+  const rawShare = String(formData.get("flatSharePct") ?? "").trim();
+  const flatSharePct = isFlatShared && rawShare ? String(Math.max(0, Math.min(100, Number(rawShare)))) : null;
 
   // Verify account belongs to user
   const [acct] = await db
@@ -50,6 +53,8 @@ export async function createTransaction(formData: FormData) {
     categoryId,
     payee,
     description,
+    isFlatShared,
+    flatSharePct,
   });
 
   // Update account balances

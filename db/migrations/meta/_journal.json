@@ -8,6 +8,13 @@
       "when": 1779373958254,
       "tag": "0000_public_absorbing_man",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1783873586646,
+      "tag": "0001_yielding_adam_warlock",
+      "breakpoints": true
     }
   ]
 }

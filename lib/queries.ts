@@ -223,6 +223,41 @@ export async function totalMonthlyEmi() {
   return rows.reduce((s, r) => s + Number(r.emi), 0);
 }
 
+/** Current-month flat-share summary: gross flat expenses paid by user, your net share, and flatmate contributions received. */
+export async function flatShareSummary() {
+  const u = await requireUser();
+  const start = new Date();
+  start.setDate(1);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setMonth(end.getMonth() + 1);
+
+  const [row] = await db
+    .select({
+      grossExpense: sql<string>`coalesce(sum(case when ${transactions.kind} = 'expense' and ${transactions.isFlatShared} then ${transactions.amount} else 0 end), 0)`,
+      // "your share" = expense × (flatSharePct/100). Default to 100% if pct is null.
+      yourShare: sql<string>`coalesce(sum(case when ${transactions.kind} = 'expense' and ${transactions.isFlatShared} then ${transactions.amount} * coalesce(${transactions.flatSharePct}, 100) / 100 else 0 end), 0)`,
+      contributions: sql<string>`coalesce(sum(case when ${transactions.kind} = 'income' and ${transactions.isFlatShared} then ${transactions.amount} else 0 end), 0)`,
+      count: sql<number>`count(*) filter (where ${transactions.isFlatShared})::int`,
+    })
+    .from(transactions)
+    .innerJoin(entities, eq(entities.id, transactions.entityId))
+    .where(
+      and(
+        eq(entities.userId, u.id),
+        sql`${transactions.occurredAt} >= ${start.toISOString()}`,
+        sql`${transactions.occurredAt} < ${end.toISOString()}`,
+      ),
+    );
+
+  const gross = Number(row?.grossExpense ?? 0);
+  const yours = Number(row?.yourShare ?? 0);
+  const contributions = Number(row?.contributions ?? 0);
+  const owedByFlatmates = Math.max(0, gross - yours);
+  const net = owedByFlatmates - contributions; // positive => flatmates still owe you
+  return { gross, yours, contributions, owedByFlatmates, net, count: row?.count ?? 0 };
+}
+
 /** Current investment totals: invested, current value, monthly SIP. */
 export async function investmentTotals() {
   const u = await requireUser();

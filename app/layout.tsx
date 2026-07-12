@@ -1,19 +1,20 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Hanken_Grotesk, Instrument_Serif, Space_Mono } from "next/font/google";
 import { ServiceWorkerRegister } from "@/components/sw-register";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
-const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono", display: "swap" });
+const sans = Hanken_Grotesk({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-sans", display: "swap" });
+const serif = Instrument_Serif({ subsets: ["latin"], weight: ["400"], style: ["normal", "italic"], variable: "--font-serif", display: "swap" });
+const mono = Space_Mono({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-mono", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Vault — Personal Finance OS",
-  description: "Track every rupee. Manage personal + company books, loans, investments, and goals.",
+  description: "Track every rupee. Manage accounts, loans, investments, and goals.",
   manifest: "/manifest.webmanifest",
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0a0a0a",
+  themeColor: "#F4F0E9",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -21,8 +22,8 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${mono.variable} dark`} suppressHydrationWarning>
-      <body className="min-h-screen antialiased">
+    <html lang="en" className={`${sans.variable} ${serif.variable} ${mono.variable}`} suppressHydrationWarning>
+      <body className="min-h-screen antialiased bg-background text-foreground">
         {children}
         <ServiceWorkerRegister />
       </body>

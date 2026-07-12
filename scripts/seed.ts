@@ -10,7 +10,7 @@ for (const f of [".env.local", ".env"]) {
 import { randomBytes, scrypt as scryptCb } from "node:crypto";
 import { promisify } from "node:util";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { Pool } from "pg";
 import * as schema from "../db/schema";
 
@@ -21,23 +21,47 @@ async function hash(password: string): Promise<string> {
   return `s1$${salt.toString("hex")}$${key.toString("hex")}`;
 }
 
-const DEFAULT_EXPENSE_CATEGORIES = [
+// Categories are grouped so the transaction form can visually separate flat-share
+// buckets from personal buckets.
+const EXPENSE_CATEGORIES = [
   "Food & Groceries",
   "Eating Out",
-  "Rent",
-  "Utilities",
   "Transport",
   "Fuel",
   "Shopping",
   "Subscriptions",
   "Health",
   "Travel",
+  "Entertainment",
   "Family Support",
   "EMI",
   "Insurance",
+  "Personal Care",
   "Misc",
 ];
-const DEFAULT_INCOME_CATEGORIES = ["Salary", "Weekly Income", "Side Income", "Interest", "Dividend", "Other Income"];
+
+const FLAT_EXPENSE_CATEGORIES = [
+  "Flat — Rent",
+  "Flat — Utilities",
+  "Flat — Internet",
+  "Flat — Groceries",
+  "Flat — Maintenance",
+  "Flat — Repairs",
+  "Flat — Other",
+];
+
+const INCOME_CATEGORIES = [
+  "Salary",
+  "Weekly Income",
+  "Side Income",
+  "Interest",
+  "Dividend",
+  "Other Income",
+];
+
+const FLAT_INCOME_CATEGORIES = [
+  "Flatmate Contribution",
+];
 
 async function main() {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -46,9 +70,7 @@ async function main() {
   const email = process.env.SEED_EMAIL ?? "akshay@sepnexus.com";
   const password = process.env.SEED_PASSWORD ?? "changeme123";
 
-  // user — upsert and ALWAYS set password to SEED_PASSWORD when provided.
-  // This makes the seed idempotent and lets you reset the password by re-running
-  // with a new SEED_PASSWORD env var.
+  // user — always upsert password so re-running is the reset command
   const passwordHash = await hash(password);
   let [user] = await db.select().from(schema.users).where(eq(schema.users.email, email)).limit(1);
   if (!user) {
@@ -62,20 +84,20 @@ async function main() {
     console.log("Updated password for existing user:", email);
   }
 
-  // entities
+  // Personal-only entity. Any legacy Sepnexus entity from earlier is removed.
+  await db
+    .delete(schema.entities)
+    .where(and(eq(schema.entities.userId, user.id), eq(schema.entities.kind, "company")));
   await db
     .insert(schema.entities)
-    .values([
-      { userId: user.id, name: "Personal", kind: "personal" },
-      { userId: user.id, name: "Sepnexus", kind: "company" },
-    ])
+    .values({ userId: user.id, name: "Personal", kind: "personal" })
     .onConflictDoNothing();
 
   // categories
-  for (const name of DEFAULT_EXPENSE_CATEGORIES) {
+  for (const name of [...EXPENSE_CATEGORIES, ...FLAT_EXPENSE_CATEGORIES]) {
     await db.insert(schema.categories).values({ userId: user.id, name, kind: "expense" }).onConflictDoNothing();
   }
-  for (const name of DEFAULT_INCOME_CATEGORIES) {
+  for (const name of [...INCOME_CATEGORIES, ...FLAT_INCOME_CATEGORIES]) {
     await db.insert(schema.categories).values({ userId: user.id, name, kind: "income" }).onConflictDoNothing();
   }
 

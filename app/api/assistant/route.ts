@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { CHAT_MODEL, getOpenAI } from "@/lib/ai";
+import { chat } from "@/lib/ai";
 import { buildUserContext } from "@/lib/ai-context";
 
 export const runtime = "nodejs";
@@ -24,16 +24,10 @@ USER FINANCIAL SNAPSHOT:
 ${context}`;
 
   try {
-    const client = getOpenAI();
-    const completion = await client.chat.completions.create({
-      model: CHAT_MODEL,
-      temperature: 0.3,
-      messages: [
-        { role: "system", content: system },
-        ...body.messages.map((m) => ({ role: m.role, content: m.content })),
-      ],
-    });
-    const reply = completion.choices[0]?.message?.content ?? "(no response)";
+    const reply = await chat([
+      { role: "system", content: system },
+      ...body.messages.map((m) => ({ role: m.role, content: m.content })),
+    ]);
     return NextResponse.json({ reply });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

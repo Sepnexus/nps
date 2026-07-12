@@ -2,63 +2,138 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Vault — warm cream design language.
+ * Palette: cream background + white cards + forest-green accent
+ * + amber highlight + terracotta for expense/debt.
+ * Fonts: Hanken Grotesk (body), Instrument Serif (display), Space Mono (labels/numbers).
+ */
+
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 4%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 4%;
+    --background: 39 40% 93%;         /* #F4F0E9 */
+    --card-cream: 39 43% 95%;         /* #F7F3EC */
+    --foreground: 30 15% 12%;         /* #211D18 */
+    --card: 0 0% 100%;                /* pure white cards on cream */
+    --card-foreground: 30 15% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 4%;
-    --primary: 142 71% 35%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 240 5% 96%;
-    --secondary-foreground: 240 6% 10%;
-    --muted: 240 5% 96%;
-    --muted-foreground: 240 4% 46%;
-    --accent: 240 5% 96%;
-    --accent-foreground: 240 6% 10%;
-    --destructive: 0 84% 60%;
+    --popover-foreground: 30 15% 12%;
+
+    --primary: 148 63% 30%;           /* #1F7A4D forest green */
+    --primary-foreground: 39 40% 96%;
+    --primary-dark: 148 60% 22%;      /* #155c39 */
+
+    --secondary: 39 38% 88%;          /* #EBE4D6 pill background */
+    --secondary-foreground: 30 15% 12%;
+
+    --muted: 39 33% 84%;              /* #E5DECF */
+    --muted-foreground: 30 8% 45%;    /* #8B8478 */
+
+    --accent-amber: 39 74% 56%;       /* #E1A73E */
+    --accent-terra: 14 60% 45%;       /* #B4552F */
+    --accent-purple: 260 30% 51%;     /* #7B5EA7 */
+    --accent-teal: 186 82% 30%;       /* #0E7C86 */
+    --accent-blue: 216 46% 46%;       /* #3E6DA6 */
+
+    --income: 146 46% 34%;            /* #2F7D57 */
+    --income-tint: 146 46% 34% / 0.13;
+    --expense: 10 60% 51%;            /* #C7563B */
+    --expense-tint: 10 60% 51% / 0.13;
+
+    --destructive: 10 60% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 240 6% 90%;
-    --input: 240 6% 90%;
-    --ring: 142 71% 35%;
-    --radius: 0.65rem;
-    --chart-income: 142 71% 45%;
-    --chart-expense: 0 70% 55%;
-    --chart-savings: 217 91% 60%;
-    --chart-investment: 262 83% 58%;
-    --chart-debt: 25 95% 55%;
+
+    --border: 36 33% 85%;              /* #E5DECF */
+    --border-soft: 36 40% 89%;         /* #EAE3D6 */
+    --input: 36 33% 85%;
+    --ring: 148 63% 30%;
+
+    --dark-panel: 30 15% 12%;          /* #211D18 for FI card + total banners */
+    --dark-panel-foreground: 39 40% 93%;
+    --dark-panel-muted: 39 20% 76%;    /* #B3A98F */
+
+    --radius: 14px;
+    --radius-lg: 18px;
+    --radius-sm: 11px;
+    --radius-chip: 10px;
+
+    --font-serif: "Instrument Serif", ui-serif, Georgia, serif;
+    --font-sans: "Hanken Grotesk", system-ui, -apple-system, sans-serif;
+    --font-mono: "Space Mono", ui-monospace, "SFMono-Regular", monospace;
   }
-  .dark {
-    --background: 240 10% 4%;
-    --foreground: 0 0% 98%;
-    --card: 240 8% 7%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 8% 7%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 142 71% 45%;
-    --primary-foreground: 240 6% 10%;
-    --secondary: 240 4% 12%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 4% 12%;
-    --muted-foreground: 240 5% 65%;
-    --accent: 240 4% 14%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 63% 50%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 4% 15%;
-    --input: 240 4% 15%;
-    --ring: 142 71% 45%;
-  }
+
   * {
     @apply border-border;
   }
   html, body {
-    @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1, "tnum" 1;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
-  .tabular {
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: #dcd4c5; border-radius: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  input, select, textarea, button { font-family: inherit; color: inherit; font-size: inherit; }
+  input:focus, select:focus, textarea:focus { outline: none; }
+  a { color: hsl(var(--primary)); text-decoration: none; }
+  a:hover { color: hsl(var(--primary-dark)); }
+}
+
+@layer utilities {
+  .tnum { font-variant-numeric: tabular-nums; }
+  .font-serif { font-family: var(--font-serif); }
+  .font-mono { font-family: var(--font-mono); }
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+  }
+  .label-mono {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+  }
+  .h1-serif {
+    font-family: var(--font-serif);
+    font-weight: 400;
+    font-size: 32px;
+    line-height: 1.05;
+  }
+  .h1-serif-lg {
+    font-family: var(--font-serif);
+    font-weight: 400;
+    font-size: 34px;
+    line-height: 1.05;
+  }
+  .num-serif {
+    font-family: var(--font-serif);
     font-variant-numeric: tabular-nums;
   }
+  .card-cream {
+    background: hsl(var(--card-cream));
+    border: 1px solid hsl(var(--border));
+  }
+  .card-plain {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border-soft));
+    border-radius: var(--radius-lg);
+  }
+  .chip-income { background: hsla(146, 46%, 34%, 0.13); color: #2F7D57; }
+  .chip-expense { background: hsla(10, 60%, 51%, 0.13); color: #C7563B; }
+  .chip-loan { background: hsla(35, 55%, 51%, 0.14); color: #C98A3C; }
+  .chip-invest { background: hsla(260, 30%, 51%, 0.13); color: #7B5EA7; }
+  .chip-goal { background: hsla(148, 63%, 30%, 0.13); color: #1F7A4D; }
+  .chip-flat { background: hsla(216, 46%, 46%, 0.13); color: #3E6DA6; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(9px); }
+    to { opacity: 1; transform: none; }
+  }
+  .anim-fadeup { animation: fadeUp 0.4s ease; }
 }
